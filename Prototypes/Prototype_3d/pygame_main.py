@@ -15,7 +15,7 @@ BUTTON_HEIGHT = 30
 BUTTON_PADDING = 10
 
 grid_size = 70
-spacing = 0.5
+spacing = 0.4
 plane_vertices = np.zeros((grid_size, grid_size), dtype=np.float32)
 
 rotation = [-40, 0]
@@ -141,8 +141,8 @@ def world_to_grid(ix, iy):
     return gx, gy
 
 def create_crater(x, y, radius, depth):
-    crater_radius = shared_settings["Диаметр кратера (Dt_2_2), м:"] / 2 / spacing
-    crater_depth = shared_settings["Глубина кратера (ht_2_2), м:"]
+    crater_radius = shared_settings["Диаметр кратера (Dₜ), м:"] / 2 / spacing
+    crater_depth = shared_settings["Глубина кратера (hₜ), м:"]
 
     for i in range(grid_size):
         for j in range(grid_size):
@@ -151,6 +151,17 @@ def create_crater(x, y, radius, depth):
                 nd = dist / crater_radius
                 deformation = -crater_depth * (1 - nd**2)
                 plane_vertices[i][j] += deformation
+
+    solid_radius = shared_settings["Радиус поражённой зоны (rₛ), м:"] / spacing
+    solid_depth = shared_settings["Глубина проникновения (hₛ), м:"]
+
+    for i in range(grid_size):
+        for j in range(grid_size):
+            dist = np.hypot(i - x, j - y)
+            if dist < solid_radius:
+                nd = dist / solid_radius
+                solid_deformation = -solid_depth * (1 - nd**2)
+                plane_vertices[i][j] = min(plane_vertices[i][j] + solid_deformation, plane_vertices[i][j])
 
 def draw_mouse_indicator(mouse_pos):
     global last_intersection
@@ -221,7 +232,7 @@ def main():
 
                 elif event.button == 3:
                     gx, gy = world_to_grid(*last_intersection[:2])
-                    create_crater(gx, gy, shared_settings["Диаметр кратера (Dt_2_2), м:"] / 2, shared_settings["Глубина кратера (ht_2_2), м:"])
+                    create_crater(gx, gy, shared_settings["Диаметр кратера (Dₜ), м:"] / 2, shared_settings["Глубина кратера (hₜ), м:"])
 
             elif event.type == MOUSEBUTTONUP:
                 if event.button == 1:
@@ -236,7 +247,7 @@ def main():
 
             elif event.type == MOUSEWHEEL:
                 camera_distance += event.y
-                camera_distance = max(-50, min(-5, camera_distance))
+                camera_distance = max(-50, min(2, camera_distance))
 
             elif event.type == KEYDOWN:
                 if event.key == K_q:
