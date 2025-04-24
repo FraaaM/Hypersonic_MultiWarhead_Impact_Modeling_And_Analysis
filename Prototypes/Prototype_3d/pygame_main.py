@@ -6,17 +6,18 @@ from OpenGL.GLUT import glutInit, glutBitmapCharacter, GLUT_BITMAP_HELVETICA_18
 import numpy as np
 import tkinter as tk
 from shared_params import shared_settings
-
-import results_window
-import settings_window
+from results_window import increment_crater_count, reset_crater_count, show_results_window
+from settings_window import create_settings_window
+from scene_state import set_plane_data
 
 BUTTON_WIDTH = 100
 BUTTON_HEIGHT = 30
 BUTTON_PADDING = 10
 
 grid_size = 70
-spacing = 0.4
+spacing = 0.3
 plane_vertices = np.zeros((grid_size, grid_size), dtype=np.float32)
+set_plane_data(plane_vertices, spacing)
 
 rotation = [-40, 0]
 dragging = False
@@ -124,7 +125,7 @@ def get_mouse_intersection(mx, my):
     winY = viewport[3] - my
 
     near = gluUnProject(winX, winY, 0.0, modelview, projection, viewport)
-    far  = gluUnProject(winX, winY, 1.0, modelview, projection, viewport)
+    far = gluUnProject(winX, winY, 1.0, modelview, projection, viewport)
 
     dir_vector = np.subtract(far, near)
     dir_vector /= np.linalg.norm(dir_vector)
@@ -161,7 +162,12 @@ def create_crater(x, y, radius, depth):
             if dist < solid_radius:
                 nd = dist / solid_radius
                 solid_deformation = -solid_depth * (1 - nd**2)
-                plane_vertices[i][j] = min(plane_vertices[i][j] + solid_deformation, plane_vertices[i][j])
+                plane_vertices[i][j] = plane_vertices[i][j] + solid_deformation
+
+def reset_plane():
+    global plane_vertices
+    plane_vertices.fill(0.0)
+    reset_crater_count()
 
 def draw_mouse_indicator(mouse_pos):
     global last_intersection
@@ -192,8 +198,13 @@ def main():
     screen = pygame.display.set_mode((width, height), DOUBLEBUF | OPENGL)
     pygame.display.set_caption("3D Плоскость")
 
-    results_button_rect = pygame.Rect(width - BUTTON_PADDING - BUTTON_WIDTH, BUTTON_PADDING, BUTTON_WIDTH, BUTTON_HEIGHT)
-    settings_button_rect = pygame.Rect(width - 2*BUTTON_PADDING - 2*BUTTON_WIDTH, BUTTON_PADDING, BUTTON_WIDTH, BUTTON_HEIGHT)
+    # Create Tkinter root
+    root = tk.Tk()
+    root.withdraw()  # Hide the root window
+
+    clear_button_rect = pygame.Rect(BUTTON_PADDING, BUTTON_PADDING, BUTTON_WIDTH, BUTTON_HEIGHT)
+    settings_button_rect = pygame.Rect(width - BUTTON_PADDING - BUTTON_WIDTH, BUTTON_PADDING, BUTTON_WIDTH, BUTTON_HEIGHT)
+    results_button_rect = pygame.Rect(width - 2*BUTTON_PADDING - 2*BUTTON_WIDTH, BUTTON_PADDING, BUTTON_WIDTH, BUTTON_HEIGHT)
 
     glEnable(GL_MULTISAMPLE)
     glEnable(GL_DEPTH_TEST)
@@ -212,26 +223,24 @@ def main():
         for event in pygame.event.get():
             if event.type == QUIT:
                 running = False
-                if settings_win is not None:
-                    try:
-                        settings_win.destroy()
-                        settings_win = None
-                    except tk.TclError:
-                        settings_win = None
+                root.destroy()
 
             elif event.type == MOUSEBUTTONDOWN:
                 if event.button == 1:
                     if results_button_rect.collidepoint(event.pos):
-                        results_window.show_results_window()
+                        show_results_window(root)
                     elif settings_button_rect.collidepoint(event.pos):
-                        if settings_win is None or not settings_window.update_settings_window(settings_win):
-                            settings_win = settings_window.show_settings_window()
+                        if settings_win is None or not settings_win.winfo_exists():
+                            settings_win = create_settings_window(root)
+                    elif clear_button_rect.collidepoint(event.pos):
+                        reset_plane()
                     else:
                         dragging = True
                         last_mouse_pos = event.pos
 
                 elif event.button == 3:
                     gx, gy = world_to_grid(*last_intersection[:2])
+                    increment_crater_count()
                     create_crater(gx, gy, shared_settings["Диаметр кратера (Dₜ), м:"] / 2, shared_settings["Глубина кратера (hₜ), м:"])
 
             elif event.type == MOUSEBUTTONUP:
@@ -263,7 +272,11 @@ def main():
             if t >= 1.0:
                 reset_mode = False
 
-        settings_win = settings_window.update_settings_window(settings_win)
+        # Update Tkinter event loop
+        try:
+            root.update()
+        except tk.TclError:
+            pass
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glPushMatrix()
@@ -292,6 +305,7 @@ def main():
         ui_y = height - BUTTON_PADDING - BUTTON_HEIGHT
         draw_button(results_button_rect.x, ui_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Results", offset_x=4)
         draw_button(settings_button_rect.x, ui_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Settings", offset_x=1)
+        draw_button(clear_button_rect.x, ui_y, BUTTON_WIDTH, BUTTON_HEIGHT, "Clear", offset_x=4)
 
         glPopMatrix()
         glMatrixMode(GL_PROJECTION)
@@ -304,3 +318,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    

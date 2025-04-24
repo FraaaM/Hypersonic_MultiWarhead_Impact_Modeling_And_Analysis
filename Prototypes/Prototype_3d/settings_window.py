@@ -2,19 +2,17 @@ import tkinter as tk
 import math
 from shared_params import shared_settings, save_settings
 from calculate import calculate_penetration
-import uuid
 
 entries = {}
 sliders = {}
 
-def create_settings_window():
-    win = tk.Tk()
+def create_settings_window(root):
+    win = tk.Toplevel(root)
     win.title("Настройки параметров")
     win.geometry("400x600")
     win.resizable(True, True)
 
     def on_closing():
-        win.quit()
         win.destroy()
 
     win.protocol("WM_DELETE_WINDOW", on_closing)
@@ -35,7 +33,6 @@ def create_settings_window():
         cylinder_button.config(fg="black" if shape_var.get() == "Цилиндр" else "gray")
         update_parameter_state()
         update_from_mass()
-
 
     sphere_button = tk.Radiobutton(shape_frame, text="Сфера", variable=shape_var, value="Сфера", command=update_shape_colors_and_state)
     sphere_button.pack(side="left", padx=5)
