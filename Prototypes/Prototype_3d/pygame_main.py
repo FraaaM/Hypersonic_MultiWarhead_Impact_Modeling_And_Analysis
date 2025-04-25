@@ -22,12 +22,12 @@ set_plane_data(plane_vertices, spacing)
 rotation = [-40, 0]
 dragging = False
 last_mouse_pos = (0, 0)
-camera_distance = -20
+camera_distance = -15
 
 last_intersection = (0.0, 0.0, 0.0)
 
 start_rotation = [-40, 0]
-start_camera_distance = -20
+start_camera_distance = -15
 
 reset_mode = False
 reset_progress = 0.0
@@ -97,7 +97,7 @@ def draw_plane():
     glEnable(GL_LINE_SMOOTH)
     glHint(GL_LINE_SMOOTH_HINT, GL_NICEST)
     glLineWidth(1.0)
-    glColor4f(0.0, 0.0, 0.0, 0.2)
+    glColor4f(0.0, 0.0, 0.0, 0.3)
     for x in range(grid_size):
         glBegin(GL_LINE_STRIP)
         for y in range(grid_size):
@@ -165,9 +165,11 @@ def create_crater(x, y, radius, depth):
                 plane_vertices[i][j] = plane_vertices[i][j] + solid_deformation
 
 def reset_plane():
-    global plane_vertices
+    global plane_vertices, reset_mode, reset_progress
     plane_vertices.fill(0.0)
     reset_crater_count()
+    reset_mode = True
+    reset_progress = 0.0
 
 def draw_mouse_indicator(mouse_pos):
     global last_intersection
@@ -198,9 +200,8 @@ def main():
     screen = pygame.display.set_mode((width, height), DOUBLEBUF | OPENGL)
     pygame.display.set_caption("3D Плоскость")
 
-    # Create Tkinter root
     root = tk.Tk()
-    root.withdraw()  # Hide the root window
+    root.withdraw()
 
     clear_button_rect = pygame.Rect(BUTTON_PADDING, BUTTON_PADDING, BUTTON_WIDTH, BUTTON_HEIGHT)
     settings_button_rect = pygame.Rect(width - BUTTON_PADDING - BUTTON_WIDTH, BUTTON_PADDING, BUTTON_WIDTH, BUTTON_HEIGHT)
@@ -272,7 +273,6 @@ def main():
             if t >= 1.0:
                 reset_mode = False
 
-        # Update Tkinter event loop
         try:
             root.update()
         except tk.TclError:
