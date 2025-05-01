@@ -12,6 +12,7 @@ from scipy.integrate import trapezoid
 import shared_params
 import calculate
 import time
+from settings_window import create_settings_window
 
 # --- Rectangle Parameters ---
 rect_width = 60
@@ -30,13 +31,12 @@ surface_x, surface_y = None, None
 original_surface_y = None
 background_color = 'white'
 total_destroyed_percentage = 0
-pan_start_x, pan_start_y, pan_cid = None, None, None  # Initialize pan_cid
-ax = None  # Initialize ax
-fig = None  # Initialize fig
+pan_start_x, pan_start_y, pan_cid = None, None, None
+ax = None
+fig = None
 click_time = None
 shape_type = None
 
-# --- Function to Calculate Destroyed Area Percentage ---
 def calculate_destroyed_percentage():
     global surface_x, surface_y, original_surface_y, rect_width, rect_height
 
@@ -57,14 +57,12 @@ def calculate_destroyed_percentage():
 
     return destroyed_percentage
 
-# --- Function to Update Destroyed Area Bar ---
 def update_destroyed_bar():
     global destroyed_area_bar, ax_destroyed, total_destroyed_percentage, total_destroyed_text
     total_destroyed_percentage = calculate_destroyed_percentage()
     destroyed_area_bar[0].remove()
     destroyed_area_bar = ax_destroyed.barh(0, total_destroyed_percentage, color='red', alpha=0.6)
     ax_destroyed.set_xlim(0, 100)
-
     total_destroyed_text.set_text(f"Total Destroyed: {total_destroyed_percentage:.4f}%")
     fig.canvas.draw_idle()
 
@@ -73,15 +71,11 @@ def calculate_crater_depth(center_x):
     num_points = 3000
     x = np.linspace(-r_crater, r_crater, num_points)
     r = np.abs(x)
-
     depth = np.zeros_like(r)
-
     central_zone = r <= r_solid
     depth[central_zone] = h_total - (h_total - h_hydro) * (r[central_zone] ** 2 / r_solid ** 2)
-
     outer_zone = (r > r_solid) & (r <= r_crater)
     depth[outer_zone] = h_hydro * (1 - (r[outer_zone] ** 2 / r_crater ** 2))
-
     return x, depth
 
 def create_crater_at(x_coord):
@@ -91,7 +85,6 @@ def create_crater_at(x_coord):
     crater_x = x_coord + dx
     depth_interp = interp1d(crater_x, depth, bounds_error=False, fill_value=0)
     depth_values = depth_interp(surface_x)
-
     surface_y += depth_values
 
     for patch in ax.patches:
@@ -109,19 +102,16 @@ def create_crater_at(x_coord):
     fig.canvas.draw_idle()
 
 def onrelease(event):
-    global click_time, h_total, h_hydro, r_crater, r_solid, shape_type
-    if event.button == 1 and click_time is not None and (time.time() - click_time) < 0.2:  #Check if less than 0.2 seconds
+    global click_time
+    if event.button == 1 and click_time is not None and (time.time() - click_time) < 0.2:
         create_crater_at(event.xdata)
 
 def onclick(event):
-    global click_time, h_total, h_hydro, r_crater, r_solid, shape_type
+    global click_time
     if event.button == 1:
         click_time = time.time()
         calculated_values = calculate_values()
-        h_total = calculated_values['h_total']
-        h_hydro = calculated_values['h_hydro_2']
-        r_crater = calculated_values['d_crater_2'] / 2
-        r_solid = calculated_values['r_solid']
+        update_globals(calculated_values)
 
 def calculate_values():
     v0 = shared_params.shared_settings["Скорость тела (v), м/с:"]
@@ -134,21 +124,15 @@ def calculate_values():
     alpha = shared_params.shared_settings["Коэффициент потери массы (α):"]
     v_crit = shared_params.shared_settings["Критическая скорость (Vₖᵣ), м/с:"]
     N = shared_params.shared_settings["Длина цилиндра (N), м:"]
+    shape = shared_params.shared_settings.get("Форма тела", "Цилиндр")
+    return calculate.calculate_penetration(N, L, rho_p, v0, rho_t, tau_0, c, alpha, k_pr, v_crit, shape)
 
-    calculated_data = calculate.calculate_penetration(
-        N=N,
-        L=L,
-        rho_p=rho_p,
-        v0=v0,
-        rho_t=rho_t,
-        tau_0=tau_0,
-        c=c,
-        alpha=alpha,
-        k_pr=k_pr,
-        v_crit=v_crit,
-        shape=shape_type.get(),  # Pass the selected shape
-    )
-    return calculated_data
+def update_globals(values):
+    global h_total, h_hydro, r_crater, r_solid
+    h_total = values['h_total']
+    h_hydro = values['h_hydro_2']
+    r_crater = values['d_crater_2'] / 2
+    r_solid = values['r_solid']
 
 def reset_rectangle():
     global surface_x, surface_y, original_surface_y, ax, fig
@@ -170,20 +154,12 @@ def reset_rectangle():
     update_destroyed_bar()
     fig.canvas.draw_idle()
 
-# --- Panning and Zooming Functions ---
 def zoom(event):
     cur_xlim = ax.get_xlim()
     cur_ylim = ax.get_ylim()
     xdata = event.xdata
     ydata = event.ydata
-
-    if event.button == 'up':
-        scale_factor = 1/1.2
-    elif event.button == 'down':
-        scale_factor = 1.2
-    else:
-        scale_factor = 1
-
+    scale_factor = 1/1.2 if event.button == 'up' else 1.2 if event.button == 'down' else 1
     new_width = (cur_xlim[1] - cur_xlim[0]) * scale_factor
     new_height = (cur_ylim[1] - cur_ylim[0]) * scale_factor
     relx = (xdata - cur_xlim[0]) / (cur_xlim[1] - cur_xlim[0])
@@ -194,7 +170,7 @@ def zoom(event):
 
 def pan(event):
     global pan_start_x, pan_start_y, pan_cid
-    if event.button == 1:  # Left mouse button
+    if event.button == 1:
         pan_start_x = event.xdata
         pan_start_y = event.ydata
         pan_cid = fig.canvas.mpl_connect('motion_notify_event', do_pan)
@@ -203,10 +179,8 @@ def do_pan(event):
     global pan_start_x, pan_start_y
     if pan_start_x is None or pan_start_y is None:
         return
-
     dx = event.xdata - pan_start_x
     dy = event.ydata - pan_start_y
-
     cur_xlim = ax.get_xlim()
     cur_ylim = ax.get_ylim()
     ax.set_xlim([cur_xlim[0] - dx, cur_xlim[1] - dx])
@@ -221,22 +195,11 @@ def release_pan(event):
     pan_start_x = None
     pan_start_y = None
 
-def update_values():
-    global h_total, h_hydro, r_crater, r_solid
-    calculated_values = calculate_values()
-    h_total = calculated_values['h_total']
-    h_hydro = calculated_values['h_hydro_2']
-    r_crater = calculated_values['d_crater_2'] / 2
-    r_solid = calculated_values['r_solid']
-
 # --- Main Tkinter Window ---
 root = tk.Tk()
 root.title("Crater Simulation")
 
-# move after root
-shape_type = tk.StringVar(value="Цилиндр")
-
-# --- PanedWindow for Left/Right Layout ---
+# --- PanedWindow ---
 paned_window = ttk.PanedWindow(root, orient=tk.HORIZONTAL)
 paned_window.pack(fill=tk.BOTH, expand=True)
 
@@ -244,122 +207,63 @@ paned_window.pack(fill=tk.BOTH, expand=True)
 parameter_frame = ttk.Frame(paned_window, padding=10)
 paned_window.add(parameter_frame)
 
-# --- Shape Selection ---
-shape_label = ttk.Label(parameter_frame, text="Форма тела:")
-shape_label.grid(row=0, column=0, sticky=tk.W)
-shape_combobox = ttk.Combobox(
-    parameter_frame, textvariable=shape_type, values=["Сфера", "Цилиндр"], state="readonly"
-)
-shape_combobox.grid(row=0, column=1, sticky=tk.E)
+# --- Settings Button ---
+def open_settings():
+    win = create_settings_window(root)
+    def on_close():
+        update_globals(calculate_values())  # Recalculate everything after changes
+        reset_rectangle()
+    win.protocol("WM_DELETE_WINDOW", lambda: (win.destroy(), on_close()))
 
-# --- Entries for Parameters ---
-entries = {}
-calculated_entry_values = {}  # Store the calculated values
+settings_button = ttk.Button(parameter_frame, text="Settings", command=open_settings)
+settings_button.grid(row=1, column=0, columnspan=2, pady=10)
 
-# Parameters to exclude from the input fields, because we calculate them
-excluded_params = [
-    "Полная глубина кратера (htotal), м:",
-    "Глубина гидродинамической зоны (hhydro), м:",
-    "Радиус кратера (rcrater), м:",
-    "Радиус зоны разрушения (rsolid), м:",
-]
+reset_button = ttk.Button(parameter_frame, text="Reset Surface", command=reset_rectangle)
+reset_button.grid(row=2, column=0, columnspan=2, pady=10)
 
-shared_params_keys = list(shared_params.shared_settings.keys())
-shared_params_keys = shared_params_keys[:-4]
-
-for i, key in enumerate(shared_params_keys, start=1):  # start at row 1
-    label = ttk.Label(parameter_frame, text=key)
-    label.grid(row=i, column=0, sticky=tk.W)
-    entry = ttk.Entry(parameter_frame)
-    entry.insert(0, str(shared_params.shared_settings[key]))  # Set initial value from shared_params
-    entry.grid(row=i, column=1, sticky=tk.E)
-    entries[key] = entry
-
-# --- Update Button ---
-def update_parameters():
-    global h_total, h_hydro, r_crater, r_solid  # Declare as global to modify them
-    try:
-        # Update shared_params with values from the entries
-        for key, entry in entries.items():
-            try:
-                shared_params.shared_settings[key] = float(entry.get())
-            except ValueError:
-                shared_params.shared_settings[key] = entry.get()
-
-        shared_params.save_settings()
-        # Update global variables after parameters are updated
-        calculated_values = calculate_values()
-        h_total = calculated_values['h_total']
-        h_hydro = calculated_values['h_hydro_2']
-        r_crater = calculated_values['d_crater_2'] / 2
-        r_solid = calculated_values['r_solid']
-
-    except ValueError as e:
-        tk.messagebox.showerror("Error", str(e))
-
-update_button = ttk.Button(parameter_frame, text="Update", command=update_parameters)
-update_button.grid(row=len(shared_params_keys) + 1, column=0, columnspan=2, pady=10)
-
-# --- Reset Rectangle Button ---
-reset_button = ttk.Button(parameter_frame, text="Reset Rectangle", command=reset_rectangle)
-reset_button.grid(row=len(shared_params_keys) + 2, column=0, columnspan=2, pady=10)  # Place below Update button
-
-# --- Matplotlib Figure and Canvas (Right Side) ---
+# --- Matplotlib Setup ---
 fig, ax = plt.subplots()
 
-# Initialize surface (flat before craters)
 surface_x = np.linspace(rect_x, rect_x + rect_width, 3000)
 surface_y = np.full_like(surface_x, rect_y, dtype=float)
 original_surface_y = surface_y.copy()
 
-# Set axis labels
 ax.set_xlabel("width, meters")
 ax.set_ylabel("depth, meters")
-
-# Put the x axis on top
 ax.xaxis.tick_top()
 ax.xaxis.set_label_position('top')
-
-# Set the Y-axis limits and direction
-ax.set_ylim(rect_y + rect_height, rect_y)  # Invert the axis on creation
-
-# Set the Y-axis ticks to face inwards
+ax.set_ylim(rect_y + rect_height, rect_y)
 ax.tick_params(axis='y', direction='in')
-
-# Make everything above the plot white
 fig.patch.set_facecolor(background_color)
 ax.set_facecolor(background_color)
-
 ax.set_xlim(rect_x, rect_x + rect_width)
-ax.set_ylim(rect_y + rect_height, rect_y)  # Adjust limits
 
-# Draw the Initial Rectangle
 rectangle = plt.Rectangle((rect_x, rect_y), rect_width, rect_height,
-                         facecolor=rect_facecolor, edgecolor=rect_edgecolor, zorder=5)
+                          facecolor=rect_facecolor, edgecolor=rect_edgecolor, zorder=5)
 ax.add_patch(rectangle)
 
-# --- Create destroyed area bar ---
+outline = plt.Rectangle((rect_x, rect_y), rect_width, rect_height,
+                        facecolor='none', edgecolor='black', linewidth=1.5, linestyle='--', zorder=10)
+ax.add_patch(outline)
+
 ax_destroyed = fig.add_axes([0.1, 0.1, 0.8, 0.05])
 ax_destroyed.set_xlim(0, 100)
 ax_destroyed.set_ylim(-1, 1)
 ax_destroyed.tick_params(axis='y', which='both', left=False, right=False, labelleft=False)
 ax_destroyed.set_xlabel("Destroyed Area (%)")
 destroyed_area_bar = ax_destroyed.barh(0, 0, color='red', alpha=0.6)
-
-# Add text label under the bar
 total_destroyed_text = fig.text(0.1, 0.12, f"Total Destroyed: {0:.4f}%")
 
-# --- Matplotlib Canvas Embedding ---
 canvas = FigureCanvasTkAgg(fig, master=root)
 canvas_widget = canvas.get_tk_widget()
 paned_window.add(canvas_widget)
 
-# --- Event Handling ---
+# --- Event Binding ---
 fig.canvas.mpl_connect('button_press_event', onclick)
 fig.canvas.mpl_connect('button_release_event', onrelease)
 fig.canvas.mpl_connect('scroll_event', zoom)
-fig.canvas.mpl_connect('button_press_event', pan)  # Bind pan start
-fig.canvas.mpl_connect('button_release_event', release_pan)  # Bind pan release
+fig.canvas.mpl_connect('button_press_event', pan)
+fig.canvas.mpl_connect('button_release_event', release_pan)
 
 # --- Mainloop ---
 root.mainloop()
