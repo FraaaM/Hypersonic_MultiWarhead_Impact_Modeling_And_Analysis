@@ -1,3 +1,4 @@
+import sys
 import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
@@ -266,4 +267,10 @@ fig.canvas.mpl_connect('button_press_event', pan)
 fig.canvas.mpl_connect('button_release_event', release_pan)
 
 # --- Mainloop ---
+def on_closing():
+    plt.close(fig)  
+    root.destroy()  
+    sys.exit(0)    
+
+root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
