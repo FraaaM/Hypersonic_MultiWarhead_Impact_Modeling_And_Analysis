@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 import subprocess
 import os
 import sys
@@ -8,12 +8,9 @@ class Application(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Hypersonic Impact Modeling")
-        self.geometry("350x380")
+        self.geometry("300x190")
         self.resizable(True, True)
-        self.configure(bg="#2d2d2d")
-        
-        self.style = ttk.Style()
-        self.style.configure("TLabel", font=("Arial", 14, "bold"), background="#2d2d2d", foreground="white")
+        self.minsize(300, 190)
         
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         
@@ -27,37 +24,29 @@ class Application(tk.Tk):
         self.check_processes()
 
     def create_widgets(self):
-        main_frame = tk.Frame(self, bg="#2d2d2d")
-        main_frame.pack(expand=True, fill='both', padx=20, pady=20)
+        main_frame = tk.Frame(self)
+        main_frame.pack(expand=True, fill='both')
 
-        title_label = ttk.Label(main_frame, text="Hypersonic Impact Modeling", style="TLabel")
-        title_label.pack(pady=30)
-
-        button_frame = tk.Frame(main_frame, bg="#2d2d2d")
-        button_frame.pack(expand=True)
+        button_frame = tk.Frame(main_frame)
+        button_frame.pack(expand=True, fill='both')
 
         self.programs['3d']['button'] = tk.Button(button_frame, 
-                                                 text="Запустить 3D визуализацию", 
-                                                 font=("Arial", 12), bg="#2d2d2d", fg="#007acc",
-                                                 activebackground="#4a4a4a", activeforeground="#007acc",
-                                                 relief="flat", pady=10,
+                                                 text="3D visualization",
+                                                 bg="green", fg="white", font=(None, 11, "bold"),
                                                  command=lambda: self.start_program('3d'))
-        self.programs['3d']['button'].pack(pady=10, fill='x', padx=50)
+        self.programs['3d']['button'].pack(expand=True, fill='both')
 
         self.programs['2d']['button'] = tk.Button(button_frame, 
-                                                 text="Запустить 2D визуализацию", 
-                                                 font=("Arial", 12), bg="#2d2d2d", fg="#007acc",
-                                                 activebackground="#4a4a4a", activeforeground="#007acc",
-                                                 relief="flat", pady=10,
+                                                 text="2D visualization",
+                                                 bg="green", fg="white", font=(None, 11, "bold"),
                                                  command=lambda: self.start_program('2d'))
-        self.programs['2d']['button'].pack(pady=10, fill='x', padx=50)
+        self.programs['2d']['button'].pack(expand=True, fill='both')
 
         self.stop_button = tk.Button(button_frame, 
-                                    text="Завершить все и выйти", 
-                                    font=("Arial", 12), bg="#2d2d2d", fg="white",
-                                    activebackground="#4a4a4a", activeforeground="#007acc",
-                                    relief="flat", pady=10, command=self.stop_all)
-        self.stop_button.pack(pady=20, fill='x', padx=50)
+                                    text="Complete everything and exit",
+                                    bg="red", fg="white", font=(None, 11, "bold"),
+                                    command=self.stop_all)
+        self.stop_button.pack(expand=True, fill='both')
 
     def start_program(self, program_type):
         config = self.programs[program_type]
@@ -71,14 +60,23 @@ class Application(tk.Tk):
 
         try:
             config['process'] = subprocess.Popen([sys.executable, full_path],
-                                                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0)
+                                                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0)
             print(f"Запущен процесс {program_type}: PID {config['process'].pid}")
-            config['button'].config(state='disabled')
+            # Устанавливаем серый фон и белый текст для активной кнопки
+            config['button'].config(state='disabled', bg='grey', fg='white')
         except Exception as e:
             print(f"Ошибка запуска {program_type}: {e}")
             messagebox.showerror("Ошибка", f"Не удалось запустить {program_type.upper()}:\n{str(e)}")
             config['process'] = None
-            config['button'].config(state='normal')
+            config['button'].config(state='normal', bg='green', fg='white')
+
+    def check_processes(self):
+        for prog_type, config in self.programs.items():
+            if config['process'] is not None and not self.process_running(config['process']):
+                print(f"Процесс {prog_type} (PID: {config['process'].pid}) завершён")
+                config['process'] = None
+                config['button'].config(state='normal', bg='green', fg='white')
+        self.after(500, self.check_processes)
 
     def validate_path(self, path):
         if not os.path.exists(path):
@@ -93,16 +91,7 @@ class Application(tk.Tk):
         self.destroy()
 
     def on_closing(self):
-        #if messagebox.askyesno("Подтверждение", "Вы уверены, что хотите завершить все программы и выйти?"):
-            self.stop_all()
-
-    def check_processes(self):
-        for prog_type, config in self.programs.items():
-            if config['process'] is not None and not self.process_running(config['process']):
-                print(f"Процесс {prog_type} (PID: {config['process'].pid}) завершён")
-                config['process'] = None
-                config['button'].config(state='normal')
-        self.after(500, self.check_processes) 
+        self.stop_all()
 
     @staticmethod
     def process_running(process):
