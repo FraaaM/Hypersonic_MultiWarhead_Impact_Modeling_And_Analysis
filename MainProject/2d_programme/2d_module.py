@@ -1,10 +1,9 @@
 import sys
 import matplotlib
 matplotlib.use("TkAgg")
-import matplotlib.pyplot as plt
 import numpy as np
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, simpledialog, messagebox
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.path as mplPath
 import matplotlib.patches as mplPatches
@@ -13,6 +12,8 @@ from scipy.integrate import trapezoid
 import shared_params
 import calculate
 import time
+from tkinter import messagebox
+import matplotlib.pyplot as plt
 from settings_window import create_settings_window
 
 # --- Rectangle Parameters ---
@@ -21,7 +22,12 @@ rect_height = 30
 rect_x = 0
 rect_y = 0
 rect_facecolor = "lightgray"
-rect_edgecolor = "lightgray"
+
+# --- Fixed Plane Borders ---
+PLANE_WIDTH = 100
+PLANE_HEIGHT = 50
+PLANE_X_CENTER = 50  # Center x coordinate of the plane
+PLANE_Y_CENTER = 25   # Center y coordinate of the plane. Inverted as y increases downwards
 
 # --- Global Variables ---
 h_total = 0
@@ -37,6 +43,52 @@ ax = None
 fig = None
 click_time = None
 shape_type = None
+settings_window_open = False  # Global flag to track settings window
+
+def get_rectangle_dimensions():
+    """Gets rectangle dimensions from the user in a single dialog."""
+    global rect_width, rect_height
+
+    root = tk.Tk()
+    root.withdraw()
+
+    dialog = tk.Toplevel(root)
+    dialog.title("Enter Rectangle Dimensions")
+
+    width_label = ttk.Label(dialog, text="Width:")
+    width_label.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+    width_entry = ttk.Entry(dialog)
+    width_entry.grid(row=0, column=1, padx=5, pady=5)
+    width_entry.insert(0, str(rect_width))  # Use string representation
+
+    height_label = ttk.Label(dialog, text="Height:")
+    height_label.grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
+    height_entry = ttk.Entry(dialog)
+    height_entry.grid(row=1, column=1, padx=5, pady=5)
+    height_entry.insert(0, str(rect_height)) # Use string representation
+
+    def ok_button_clicked():
+        global rect_width, rect_height
+        try:
+            new_width = float(width_entry.get())
+            new_height = float(height_entry.get())
+            rect_width = new_width
+            rect_height = new_height
+        except ValueError:
+            messagebox.showerror("Error", "Invalid input. Please enter numbers for width and height.")
+            return  # This will prevent to continue if there's invalid inputs
+
+        dialog.destroy()
+        root.destroy()
+
+    ok_button = ttk.Button(dialog, text="OK", command=ok_button_clicked)
+    ok_button.grid(row=2, column=0, columnspan=2, pady=10)
+
+    root.wait_window(dialog)
+
+
+rect_edgecolor = "lightgray"
+
 
 def calculate_destroyed_percentage():
     global surface_x, surface_y, original_surface_y, rect_width, rect_height
@@ -61,7 +113,11 @@ def calculate_destroyed_percentage():
 def update_destroyed_bar():
     global destroyed_area_bar, ax_destroyed, total_destroyed_percentage, total_destroyed_text
     total_destroyed_percentage = calculate_destroyed_percentage()
-    destroyed_area_bar[0].remove()
+
+    # Clear the previous bar
+    for bar in ax_destroyed.patches:
+        bar.remove()
+
     destroyed_area_bar = ax_destroyed.barh(0, total_destroyed_percentage, color='red', alpha=0.6)
     ax_destroyed.set_xlim(0, 100)
     total_destroyed_text.set_text(f"Total Destroyed: {total_destroyed_percentage:.4f}%")
@@ -136,14 +192,37 @@ def update_globals(values):
     r_solid = values['r_solid']
 
 def reset_rectangle():
-    global surface_x, surface_y, original_surface_y, ax, fig
+    global surface_x, surface_y, original_surface_y, ax, fig, total_destroyed_percentage, rect_width, rect_height, rect_x, rect_y
+
+    ax.clear()
+    ax.set_aspect('equal')
+    ax.set_xlabel("width, meters")
+    ax.set_ylabel("depth, meters")
+    ax.xaxis.tick_top()
+    ax.xaxis.set_label_position('top')
+
+    # Set fixed plane limits based on the PLANE_CENTER values
+    ax.set_xlim(PLANE_X_CENTER - PLANE_WIDTH/2, PLANE_X_CENTER + PLANE_WIDTH/2)
+    ax.set_ylim(PLANE_Y_CENTER + PLANE_HEIGHT/2, PLANE_Y_CENTER - PLANE_HEIGHT/2)
+
+    ax.tick_params(axis='y', direction='in')
+    fig.patch.set_facecolor(background_color)
+    ax.set_facecolor(background_color)
+
+    # Recalculate surface data based on new rectangle dimensions
     surface_x = np.linspace(rect_x, rect_x + rect_width, 3000)
     surface_y = np.full_like(surface_x, rect_y, dtype=float)
     original_surface_y = surface_y.copy()
 
-    for patch in ax.patches:
-        if not isinstance(patch, mplPatches.Rectangle):
-            patch.remove()
+    # Create and add the rectangle patch
+    rectangle = plt.Rectangle((rect_x, rect_y), rect_width, rect_height,
+                              facecolor=rect_facecolor, edgecolor=rect_edgecolor, zorder=5)
+    ax.add_patch(rectangle)
+
+    # Create and add the outline
+    outline = plt.Rectangle((rect_x, rect_y), rect_width, rect_height,
+                            facecolor='none', edgecolor='black', linewidth=1.5, linestyle='--', zorder=10)
+    ax.add_patch(outline)
 
     mask_offset = 0.1
     polygon_x = np.concatenate([[rect_x - mask_offset], surface_x, [rect_x + rect_width + mask_offset]])
@@ -152,7 +231,12 @@ def reset_rectangle():
     patch = mplPatches.PathPatch(path, facecolor=background_color, lw=0, transform=ax.transData, zorder=6)
     ax.add_patch(patch)
 
+    # Reset the destroyed percentage
+    total_destroyed_percentage = 0
+
+    # Update the destroyed bar
     update_destroyed_bar()
+
     fig.canvas.draw_idle()
 
 def zoom(event):
@@ -196,7 +280,26 @@ def release_pan(event):
     pan_start_x = None
     pan_start_y = None
 
+def open_settings():
+    global settings_window_open
+    if not settings_window_open:
+        settings_window_open = True
+        win = create_settings_window(root)
+
+        def on_close():
+            global settings_window_open
+            settings_window_open = False  # Reset the flag when the window is closed
+            update_globals(calculate_values())  # Recalculate everything after changes
+            reset_rectangle()
+
+
+        win.protocol("WM_DELETE_WINDOW", on_close)
+    else:
+        messagebox.showinfo("Info", "Settings window is already open.")
+
 # --- Main Tkinter Window ---
+get_rectangle_dimensions()
+
 root = tk.Tk()
 root.title("Crater Simulation")
 
@@ -209,13 +312,6 @@ parameter_frame = ttk.Frame(paned_window, padding=10)
 paned_window.add(parameter_frame)
 
 # --- Settings Button ---
-def open_settings():
-    win = create_settings_window(root)
-    def on_close():
-        update_globals(calculate_values())  # Recalculate everything after changes
-        reset_rectangle()
-    win.protocol("WM_DELETE_WINDOW", lambda: (win.destroy(), on_close()))
-
 settings_button = ttk.Button(parameter_frame, text="Settings", command=open_settings)
 settings_button.grid(row=1, column=0, columnspan=2, pady=10)
 
@@ -229,15 +325,19 @@ surface_x = np.linspace(rect_x, rect_x + rect_width, 3000)
 surface_y = np.full_like(surface_x, rect_y, dtype=float)
 original_surface_y = surface_y.copy()
 
+ax.set_aspect('equal')
 ax.set_xlabel("width, meters")
 ax.set_ylabel("depth, meters")
 ax.xaxis.tick_top()
 ax.xaxis.set_label_position('top')
-ax.set_ylim(rect_y + rect_height, rect_y)
+
+# Set fixed plane limits based on the PLANE_CENTER values
+ax.set_xlim(PLANE_X_CENTER - PLANE_WIDTH / 2, PLANE_X_CENTER + PLANE_WIDTH / 2)
+ax.set_ylim(PLANE_Y_CENTER + PLANE_HEIGHT / 2, PLANE_Y_CENTER - PLANE_HEIGHT / 2)  # Inverted
+
 ax.tick_params(axis='y', direction='in')
 fig.patch.set_facecolor(background_color)
 ax.set_facecolor(background_color)
-ax.set_xlim(rect_x, rect_x + rect_width)
 
 rectangle = plt.Rectangle((rect_x, rect_y), rect_width, rect_height,
                           facecolor=rect_facecolor, edgecolor=rect_edgecolor, zorder=5)
@@ -268,9 +368,9 @@ fig.canvas.mpl_connect('button_release_event', release_pan)
 
 # --- Mainloop ---
 def on_closing():
-    plt.close(fig)  
-    root.destroy()  
-    sys.exit(0)    
+    plt.close(fig)
+    root.destroy()
+    sys.exit(0)
 
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
