@@ -45,7 +45,7 @@ def calculate_penetration(L, d, rho_p, v0, rho_t, tau_0, c, alpha, k_pr, v_crit=
     h_solid =  ( (k_pr * ( (m_eff * v_crit) / ((d)**2))) ) 
 
     # Диаметр поражённой зоны
-    r_solid = math.sqrt((A0 * (1 + v_crit / c)) / math.pi)
+    d_solid = 2 * math.sqrt((A0 * (1 + v_crit / c)) / math.pi)
     
     # Общая глубина проникновения
     h_total = h_hydro_2 + h_solid
@@ -57,7 +57,7 @@ def calculate_penetration(L, d, rho_p, v0, rho_t, tau_0, c, alpha, k_pr, v_crit=
         'h_hydro_2': h_hydro_2,
         'd_crater_2': d_crater_2,
         'h_solid': h_solid,
-        'r_solid': r_solid,
+        'd_solid': d_solid,
         'h_total': h_total,
         'A0': A0
     }
@@ -88,5 +88,5 @@ print(f"Глубина проникновения (гидродинамичес�
 print(f"Диаметр кратера: {results['d_crater_2']:.3f} м")
 
 print(f"Глубина проникновения (фаза твёрдого тела): {results['h_solid']:.3f} м")
-print(f"Диаметр поражённой зоны: {2*results['r_solid']:.3f} м")
+print(f"Диаметр поражённой зоны: {results['d_solid']:.3f} м")
 print(f"Общая глубина проникновения: {results['h_total']:.3f} м")
