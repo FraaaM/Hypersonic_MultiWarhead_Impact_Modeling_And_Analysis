@@ -6,8 +6,8 @@ from calculate import calculate_penetration
 entries = {}
 sliders = {}
 
-def create_settings_window(root):
-    win = tk.Toplevel(root)
+def create_settings_window(parent):
+    win = tk.Toplevel(parent)
     win.title("Настройки параметров")
     win.geometry("400x600")
     win.resizable(True, True)
