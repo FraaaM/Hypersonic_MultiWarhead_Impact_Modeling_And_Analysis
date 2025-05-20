@@ -164,10 +164,10 @@ def create_settings_window(root):
         update_mass()
 
     slider_params = [
-        ("Длина цилиндра (N), м:", N_var, 0.01, 2.0, 0.01, update_mass),
-        ("Диаметр тела (L), м:", L_var, 0.01, 1, 0.01, update_mass),
-        ("Плотность тела (ρₚ), кг/м³:", rho_p_var, 2000, 9000, 100, update_mass),
-        ("Масса тела (m), кг:", m_var, 10, 5000, 10, update_from_mass),
+        ("Длина цилиндра (N), м:", N_var, 0.5, 5.0, 0.01, update_mass),
+        ("Диаметр тела (L), м:", L_var, 0.05, 2.0, 0.01, update_mass),
+        ("Плотность тела (ρₚ), кг/м³:", rho_p_var, 2000, 15000, 100, update_mass),
+        ("Масса тела (m), кг:", m_var, 10, 1000, 10, update_from_mass),
     ]
 
     for i, (label_text, var, min_val, max_val, resolution, callback) in enumerate(slider_params):
