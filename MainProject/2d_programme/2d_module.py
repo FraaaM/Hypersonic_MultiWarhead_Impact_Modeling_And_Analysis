@@ -44,6 +44,7 @@ fig = None
 click_time = None
 shape_type = None
 settings_window_open = False  # Global flag to track settings window
+settings_window = None
 
 def get_rectangle_dimensions():
     """Gets rectangle dimensions from the user in a single dialog."""
@@ -281,21 +282,33 @@ def release_pan(event):
     pan_start_y = None
 
 def open_settings():
-    global settings_window_open
-    if not settings_window_open:
+    global settings_window_open, settings_window
+
+    # If there's no live settings_window, create one:
+    if settings_window is None or not settings_window.winfo_exists():
         settings_window_open = True
-        win = create_settings_window(root)
+        settings_window = create_settings_window(root)
 
         def on_close():
-            global settings_window_open
-            settings_window_open = False  # Reset the flag when the window is closed
-            update_globals(calculate_values())  # Recalculate everything after changes
-            reset_rectangle()
+            global settings_window_open, settings_window
 
+            # 1) Destroy the window object:
+            settings_window.destroy()
 
-        win.protocol("WM_DELETE_WINDOW", on_close)
+            # 2) Then reset your flags:
+            settings_window_open = False
+            settings_window = None
+
+            # 3) Recalculate & redraw:
+            update_globals(calculate_values())
+
+        # Attach the close protocol to the Toplevel itself:
+        settings_window.protocol("WM_DELETE_WINDOW", on_close)
+
     else:
-        messagebox.showinfo("Info", "Settings window is already open.")
+        # If it's already open, bring it to front
+        settings_window.lift()
+        settings_window.focus_force()
 
 # --- Main Tkinter Window ---
 get_rectangle_dimensions()
